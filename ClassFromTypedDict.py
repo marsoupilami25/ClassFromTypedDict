@@ -23,6 +23,7 @@ class ClassFromTypedDict:
     private class attribute storing association between classes and TypedDict 
     """
 
+    _exception: dict[str, str] ={}
 
     class _Result(NamedTuple):
         """
@@ -62,6 +63,11 @@ class ClassFromTypedDict:
         :type data: dict that shall follow the schema defined by the TypedDict of the class
         """
         hints = get_type_hints(self._class_ref)  # Gather TypedDict annotations
+
+        #correct exception
+        for key, value in self._exception.items():
+            if key in data:
+                data[value] = data.pop(key)
 
         # Check there is no unexpected fields
         extra_fields = [field for field in data.keys() if field not in hints.keys()]
