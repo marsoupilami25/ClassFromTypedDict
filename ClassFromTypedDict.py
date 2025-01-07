@@ -1,5 +1,5 @@
 import inspect
-from typing import get_type_hints, get_origin, get_args, _TypedDictMeta, Optional, NamedTuple
+from typing import get_type_hints, get_origin, get_args, _TypedDictMeta, Optional, NamedTuple, cast
 
 from pydantic.typing import is_union
 from typing import TypedDict
@@ -87,6 +87,16 @@ class ClassFromTypedDict:
             if new_data is not None:
                 # store it
                 setattr(self, field, new_data)
+                continue  # next field
+            else:
+                origin_type = get_origin(field_type)
+                if is_union(origin_type):
+                    # for each type of the union
+                    types = get_args(field_type)
+                    if type(None) in types:
+                        setattr(self, field, new_data)
+                        continue # next field
+                raise TypeError(f"Unexpected None value for field '{field}'. Expected type is '{field_type}'")
 
     def __analyze_data(self, data, data_type, expected_data_type, field) -> object:
         """
@@ -136,6 +146,7 @@ class ClassFromTypedDict:
             # go through the dict
             field_key_type, field_value_type = get_args(expected_data_type)
             new_data = {}
+            data = cast(dict, data)
             for key, value in data.items():
                 # convert the key
                 new_key = self.__analyze_data(key, type(key), field_key_type, field)
@@ -166,6 +177,7 @@ class ClassFromTypedDict:
             # if the data type is dict
             if data_type is dict:
                 # convert the dict into the target field
+                data=cast(dict,data)
                 new_data = self.__convert_dict_to_class(field_type, data)
                 #return the converted data
                 return self._Result(found=True, data=new_data)
