@@ -1,16 +1,25 @@
 import inspect
-from typing import get_type_hints, get_origin, get_args, _TypedDictMeta, Optional, NamedTuple, cast
 
-from pydantic.typing import is_union
+from types import UnionType
+from typing import get_type_hints, get_origin, get_args, Optional, NamedTuple, cast
 from typing import TypedDict
 
-class ClassFromTypedDict:
+
+def _is_typeddict(a_class) -> bool:
+    if not isinstance(a_class, type):
+        return False
+    return type(a_class).__name__ == "_TypedDictMeta"
+
+
+class ClassFromTypedDict: # pylint: disable=too-few-public-methods
     """
-    The Class ClassFromTypedDict allows converting a dict following a TypedDict schema into a class automatically.
+    The Class ClassFromTypedDict allows converting a dict following
+    a TypedDict schema into a class automatically.
     The resulted class needs to be a super class of ClassFromTypedDict
     At the class creation a dict is passed to the constructor.
     This dict will be used as a basis to create the parameters.
-    If the TypedDict is nested, the associated ClassFromTypedDict is automatically created and nested to the root ClassFromTypedDict
+    If the TypedDict is nested, the associated ClassFromTypedDict is automatically
+    created and nested to the root ClassFromTypedDict
     """
 
     _class_ref: TypedDict
@@ -33,7 +42,12 @@ class ClassFromTypedDict:
         data: Optional[object]
 
     @classmethod
-    def import_package(cls, package):
+    def get_class_ref(cls):
+        return cls._class_ref
+
+    @classmethod
+    def import_package(cls,
+                       package):
         """
         This method set the association between classes and typeddict
         It goes through a package to find classes of type ClassFromTypedDict and
@@ -49,14 +63,17 @@ class ClassFromTypedDict:
             module_classes = inspect.getmembers(module[1], inspect.isclass)
             # and go through all classes
             for module_class_tuple in module_classes:
-                module_class = module_class_tuple[1]
+                module_class: type = module_class_tuple[1]
                 # if a class is a subclass of ClassFromTypedDict
-                if issubclass(module_class, ClassFromTypedDict) and module_class != ClassFromTypedDict:
+                if (issubclass(module_class, ClassFromTypedDict)
+                        and module_class != ClassFromTypedDict):
                     # update the association private attribute
-                    typeddict_class = module_class._class_ref
-                    cls._typeddict_class_association[typeddict_class] = [ module, module_class ]
+                    classfromtypeddict_class = cast(ClassFromTypedDict,module_class)
+                    typeddict_class_ref = classfromtypeddict_class.get_class_ref()
+                    cls._typeddict_class_association[typeddict_class_ref] = [ module, module_class ]
 
-    def __init__(self, data: dict):
+    def __init__(self,
+                 data: dict):
         """
 
         :param data: dictionary
@@ -88,19 +105,23 @@ class ClassFromTypedDict:
                 # store it
                 setattr(self, field, new_data)
                 continue  # next field
-            else:
-                origin_type = get_origin(field_type)
-                if is_union(origin_type):
-                    # for each type of the union
-                    types = get_args(field_type)
-                    if type(None) in types:
-                        setattr(self, field, new_data)
-                        continue # next field
-                raise TypeError(f"Unexpected None value for field '{field}'. Expected type is '{field_type}'")
+            origin_type = get_origin(field_type)
+            if issubclass(origin_type, UnionType):
+                # for each type of the union
+                types = get_args(field_type)
+                if type(None) in types:
+                    setattr(self, field, new_data)
+                    continue # next field
+            raise TypeError(f"Unexpected None value for field '{field}'. "
+                            f"Expected type is '{field_type}'")
 
-    def __analyze_data(self, data, data_type, expected_data_type, field) -> object:
+    def __analyze_data(self,
+                       data,
+                       data_type,
+                       expected_data_type, field) -> object:
         """
-        This private method analyze a data to check the coherency with the dict and create the value to be stored in the class
+        This private method analyze a data to check the coherency with
+        the dict and create the value to be stored in the class
         :param data: data to analyze
         :type data: object
         :param data_type: type of the data
@@ -116,33 +137,38 @@ class ClassFromTypedDict:
         # if the data is not a list or a dict or a union
         if origin_type is None:
             # check the data
-            result : ClassFromTypedDict._Result = self.__check_data(data, data_type, expected_data_type)
+            result : ClassFromTypedDict._Result = self.__check_data(data,
+                                                                    data_type,
+                                                                    expected_data_type)
             # if data has been converted
             if result.found:
                 # return the data
                 return result.data
-            else:
-                #otherwise raise an error
-                raise TypeError(f"Analyzing field '{field}', unexpected type {data_type}, waiting {expected_data_type}")
+            #otherwise raise an error
+            raise TypeError(f"Analyzing field '{field}', "
+                            f"unexpected type {data_type}, "
+                            f"waiting {expected_data_type}")
         # if the data is a union
-        elif is_union(origin_type):
+        if isinstance(origin_type, type) and issubclass(origin_type, UnionType):
             # for each type of the union
-            types = get_args(expected_data_type)
-            for type_elem in types:
+            for type_elem in get_args(expected_data_type):
                 # check the data can be converted
                 result : ClassFromTypedDict._Result = self.__check_data(data, data_type, type_elem)
                 # if yes return the data
                 if result.found:
                     return result.data
             # if no conversion has been possible raise an error
-            raise TypeError(f"Analyzing field '{field}', unexpected type {data_type}, waiting {expected_data_type} in ")
+            raise TypeError(f"Analyzing field '{field}', "
+                            f"unexpected type {data_type}, "
+                            f"waiting {expected_data_type} in ")
         # if the data is a list
-        elif issubclass(origin_type, list):
-            # in the case of list, the case of list of TypedDict or more complex type containing TypedDict is not managed
+        if isinstance(origin_type, type) and issubclass(origin_type, list):
+            # in the case of list, the case of list of TypedDict
+            #       or more complex type containing TypedDict is not managed
             # at this current time, the xknx project does not contain such case
             return data
         # if the data is a dict
-        elif issubclass(origin_type, dict):
+        if isinstance(origin_type, type) and issubclass(origin_type, dict):
             # go through the dict
             field_key_type, field_value_type = get_args(expected_data_type)
             new_data = {}
@@ -157,8 +183,7 @@ class ClassFromTypedDict:
             # return the created new dict
             return new_data
         # otherwise raise an error
-        else:
-            raise TypeError(f"Unexpected case analyzing field '{field}")
+        raise TypeError(f"Unexpected case analyzing field '{field}")
 
     def __check_data(self, data, data_type, field_type) -> _Result:
         """
@@ -172,8 +197,7 @@ class ClassFromTypedDict:
         :return:
         :rtype:
         """
-        # if the target data id a TypedDict type
-        if issubclass(type(field_type), _TypedDictMeta):
+        if _is_typeddict(field_type):
             # if the data type is dict
             if data_type is dict:
                 # convert the dict into the target field
@@ -181,17 +205,14 @@ class ClassFromTypedDict:
                 new_data = self.__convert_dict_to_class(field_type, data)
                 #return the converted data
                 return self._Result(found=True, data=new_data)
-            else:
-                # otherwise return a conversion has not been found
-                return self._Result(found=False, data=None)
-        else:
-            # otherwise if the target type is the same than the data type
-            if data_type == field_type:
-                # return the data
-                return self._Result(found=True, data=data)
-            else:
-                # otherwise return a conversion has not been found
-                return self._Result(found=False, data=None)
+            # otherwise return a conversion has not been found
+            return self._Result(found=False, data=None)
+        # otherwise if the target type is the same than the data type
+        if data_type == field_type:
+            # return the data
+            return self._Result(found=True, data=data)
+        # otherwise return a conversion has not been found
+        return self._Result(found=False, data=None)
 
     def __convert_dict_to_class(self, field_type, data) -> object:
         """
@@ -204,12 +225,11 @@ class ClassFromTypedDict:
         :rtype: ClassFromTypedDict | dict
         """
         # if the target field has an associated ClassFromTypedDict class
-        if field_type in self._typeddict_class_association.keys():
+        if field_type in self._typeddict_class_association:
             # convert the data into the associated ClassFromTypedDict class
             cls = self._typeddict_class_association[field_type][1]
             new_data = cls(data)
             # return the created class
             return new_data
-        else:
-            # otherwise return the data as is
-            return data
+        # otherwise return the data as is
+        return data
