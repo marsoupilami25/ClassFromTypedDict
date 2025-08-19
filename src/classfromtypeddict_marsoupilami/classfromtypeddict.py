@@ -86,7 +86,8 @@ class ClassFromTypedDict: # pylint: disable=too-few-public-methods
             if key in data:
                 data[value] = data.pop(key)
 
-        # Check there is no unexpected fields
+        # Check there is no unexpected fields in data
+        # (meaning not declared in the ref TypedDict)
         extra_fields = [field for field in data.keys() if field not in hints.keys()]
         if extra_fields:
             raise TypeError(f"Unexpected fields: {', '.join(extra_fields)}")

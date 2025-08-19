@@ -1,1 +1,3 @@
 *.egg-info/
+/dist/classfromtypeddict_marsoupilami-0.0.4.tar.gz
+/dist/classfromtypeddict_marsoupilami-0.0.4-py3-none-any.whl
