@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "classfromtypeddict_marsoupilami"
-version = "0.0.4"
+name = "classfromtypeddict"
+version = "0.0.5"
 authors = [
   { name="marsoupilami"},
 ]
